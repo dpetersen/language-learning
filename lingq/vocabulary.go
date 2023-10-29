@@ -15,7 +15,7 @@ import (
 // https://forum.lingq.com/t/url-and-docs-for-30-api/75276/4
 
 type Word struct {
-	Term string
+	Term   string
 	Status int
 }
 
@@ -25,10 +25,10 @@ type VocabularyClient struct {
 }
 
 type APIResponse struct {
-	Count int
-	Next *string
+	Count   int
+	Next    *string
 	Results []struct {
-		Term string
+		Term   string
 		Status int
 	}
 }
@@ -36,8 +36,8 @@ type APIResponse struct {
 // Get your API key at:
 // https://www.lingq.com/en/accounts/apikey/
 const (
-	apiRoot = "https://www.lingq.com/api/"
-	v3Path = apiRoot + "v3"
+	apiRoot   = "https://www.lingq.com/api/"
+	v3Path    = apiRoot + "v3"
 	cardsPath = v3Path + "/es/cards/"
 )
 
@@ -76,7 +76,7 @@ func (c *VocabularyClient) GetNonNewWords() ([]Word, error) {
 
 func (c *VocabularyClient) newAPIRequest() *resty.Request {
 	return c.client.R().
-		SetHeader("Authorization", "Token " + c.apiKey).
+		SetHeader("Authorization", "Token "+c.apiKey).
 		SetHeader("accept", "application/json")
 }
 

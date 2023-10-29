@@ -14,30 +14,30 @@ const (
 
 type StoryClient struct {
 	client *resty.Client
-	model string
+	model  string
 	apiKey string
 }
 
 func NewStoryClient(apiKey, model string) *StoryClient {
 	return &StoryClient{
 		client: resty.New(),
-		model: model,
+		model:  model,
 		apiKey: apiKey,
 	}
 }
 
 type completionMessage struct {
-		Role string `json:"role"`
-		Content string `json:"content"`
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
 
 type completionRequest struct {
-	Model string `json:"model"`
-	Messages []completionMessage `json:"messages"`
-	MaxTokens int `json:"max_tokens"`
-	N int `json:"n"`
-	Temperature float64 `json:"temperature"`
-	User string `json:"user"`
+	Model       string              `json:"model"`
+	Messages    []completionMessage `json:"messages"`
+	MaxTokens   int                 `json:"max_tokens"`
+	N           int                 `json:"n"`
+	Temperature float64             `json:"temperature"`
+	User        string              `json:"user"`
 }
 
 func (c *StoryClient) Create(words []lingq.Word, threshold int) (string, error) {
@@ -51,18 +51,18 @@ func (c *StoryClient) Create(words []lingq.Word, threshold int) (string, error) 
 		Model: c.model,
 		Messages: []completionMessage{
 			{
-				Role: "system",
+				Role:    "system",
 				Content: "You are a Spanish tutor and you are teaching a student how to write a story in Spanish. The student is writing a story in Spanish using the following words with their familiarity levels. A higher number means the word is better known. Make sure the resulting story that it is roughly 95% comprehensible based on my known words:\n" + promptWords,
 			},
 			{
-				Role: "user",
+				Role:    "user",
 				Content: "Please write me a story that I can understand. I am a beginner.",
 			},
 		},
-		MaxTokens: 300,
-		N: 1,
+		MaxTokens:   300,
+		N:           1,
 		Temperature: 0.7,
-		User: "Language Learning",
+		User:        "Language Learning",
 	}
 
 	requestBody, err := json.Marshal(requestObject)

@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"log"
+	"os"
 
-	"github.com/dpetersen/language-learning/lingq"
 	"github.com/dpetersen/language-learning/gpt"
+	"github.com/dpetersen/language-learning/lingq"
 )
 
 /*
@@ -23,10 +23,10 @@ Todo List:
 */
 
 type Config struct {
-	LingQAPIKey string
+	LingQAPIKey       string
 	LingQDatabasePath string
-	OpenAIAPIKey string
-	GPTModel string
+	OpenAIAPIKey      string
+	GPTModel          string
 }
 
 func main() {
@@ -83,9 +83,9 @@ func GetVarsOrDieTrying() Config {
 	}
 
 	return Config{
-		LingQAPIKey: lingqAPIKey,
+		LingQAPIKey:       lingqAPIKey,
 		LingQDatabasePath: lingqDatabasePath,
-		OpenAIAPIKey: openAIAPIKey,
-		GPTModel: gptModel,
+		OpenAIAPIKey:      openAIAPIKey,
+		GPTModel:          gptModel,
 	}
 }
