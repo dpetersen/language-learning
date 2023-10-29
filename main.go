@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"log"
-	"fmt"
+
 	"github.com/dpetersen/language-learning/lingq"
+	"github.com/dpetersen/language-learning/gpt"
 )
 
 /*
@@ -20,18 +22,18 @@ Todo List:
 
 */
 
+type Config struct {
+	LingQAPIKey string
+	LingQDatabasePath string
+	OpenAIAPIKey string
+	GPTModel string
+}
+
 func main() {
-	lingqAPIKey := os.Getenv("LINGQ_API_KEY")
-	if lingqAPIKey == "" {
-		log.Panic("LINGQ_API_KEY must be set!")
-	}
-	lingqDatabasePath := os.Getenv("LINGQ_DATABASE_PATH")
-	if lingqDatabasePath == "" {
-		log.Panic("LINGQ_DATABASE_PATH must be set!")
-	}
+	config := GetVarsOrDieTrying()
 
 	log.Println("Checking local database...")
-	database := lingq.NewWordDatabase(lingqDatabasePath)
+	database := lingq.NewWordDatabase(config.LingQDatabasePath)
 	words, err := database.FetchIfFresh()
 	if err != nil {
 		log.Panicf("Fetching LingQ words from database: %v", err)
@@ -39,7 +41,7 @@ func main() {
 
 	if words == nil {
 		log.Println("Database not fresh, fetching new words...")
-		fetchedWords, err := lingq.NewVocabularyClient(lingqAPIKey).GetNonNewWords()
+		fetchedWords, err := lingq.NewVocabularyClient(config.LingQAPIKey).GetNonNewWords()
 		if err != nil {
 			log.Panicf("Getting non-new words from LingQ: %v", err)
 		}
@@ -51,6 +53,39 @@ func main() {
 		}
 	}
 
-	fmt.Printf("Got: %+v\n\n", words)
-	fmt.Printf("Len: %d", len(words))
+	log.Printf("Loaded %d words...", len(words))
+
+	storyClient := gpt.NewStoryClient(config.OpenAIAPIKey, config.GPTModel)
+	story, err := storyClient.Create(words, 3)
+	if err != nil {
+		log.Panicf("Creating story: %v", err)
+	}
+
+	fmt.Printf("Got story: %s\n", story)
+}
+
+func GetVarsOrDieTrying() Config {
+	lingqAPIKey := os.Getenv("LINGQ_API_KEY")
+	if lingqAPIKey == "" {
+		log.Panic("LINGQ_API_KEY must be set!")
+	}
+	lingqDatabasePath := os.Getenv("LINGQ_DATABASE_PATH")
+	if lingqDatabasePath == "" {
+		log.Panic("LINGQ_DATABASE_PATH must be set!")
+	}
+	openAIAPIKey := os.Getenv("OPENAI_API_KEY")
+	if openAIAPIKey == "" {
+		log.Panic("OPENAI_API_KEY must be set!")
+	}
+	gptModel := os.Getenv("GPT_MODEL")
+	if gptModel == "" {
+		log.Panic("GPT_MODEL must be set!")
+	}
+
+	return Config{
+		LingQAPIKey: lingqAPIKey,
+		LingQDatabasePath: lingqDatabasePath,
+		OpenAIAPIKey: openAIAPIKey,
+		GPTModel: gptModel,
+	}
 }
