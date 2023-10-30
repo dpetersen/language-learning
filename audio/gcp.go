@@ -38,7 +38,7 @@ func (c *AudioClient) TextToSpeech(text string) ([]byte, error) {
 				InputSource: &texttospeechpb.SynthesisInput_Text{Text: text},
 			},
 			Voice: &texttospeechpb.VoiceSelectionParams{
-				Name:         "es-US-Neural2-B",
+				Name:         randomVoiceName(),
 				LanguageCode: "es-US",
 			},
 			AudioConfig: &texttospeechpb.AudioConfig{
