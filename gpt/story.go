@@ -57,15 +57,20 @@ func (c *StoryClient) Create(words []lingq.Word, threshold int) (string, error) 
 		Model: c.model,
 		Messages: []completionMessage{
 			{
-				Role:    "system",
-				Content: "You are a Spanish tutor who teaches by telling stories using the theory of Comprehensible Input. You believe the student learns best when they understand 95% of the words they read or hear. Here is a vocabulary list for the student:\n" + wordsByStatus(words, threshold),
+				Role: "system",
+				Content: `
+				You are a Spanish tutor who teaches by telling stories using the theory of Comprehensible Input. You believe the student learns best when they understand 95% of the words they read or hear. Keep the story around 500-700 words.
+
+				After each story, ask the student 5 questions in Spanish about the story afterwards, but giving them the answer as part of the question (e.g. Juan wants to travel to France. Where does Juan want to travel?)
+
+				Here is a vocabulary list for the student:\n` + wordsByStatus(words, threshold),
 			},
 			{
 				Role:    "user",
 				Content: "Please write me a story that I can understand. I am a beginner.",
 			},
 		},
-		MaxTokens:   300,
+		MaxTokens:   1000,
 		N:           1,
 		Temperature: 0.7,
 		User:        "Language Learning",
