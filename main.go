@@ -1,12 +1,11 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	"os"
 
 	"github.com/dpetersen/language-learning/gpt"
 	"github.com/dpetersen/language-learning/lingq"
+	"github.com/sirupsen/logrus"
 )
 
 /*
@@ -29,57 +28,65 @@ type Config struct {
 	GPTModel          string
 }
 
+func init() {
+	if level := os.Getenv("LOG_LEVEL"); level != "" {
+		if parsed, err := logrus.ParseLevel(level); err == nil {
+			logrus.SetLevel(parsed)
+		}
+	}
+}
+
 func main() {
 	config := GetVarsOrDieTrying()
 
-	log.Println("Checking local database...")
+	logrus.Info("Checking local database...")
 	database := lingq.NewWordDatabase(config.LingQDatabasePath)
 	words, err := database.FetchIfFresh()
 	if err != nil {
-		log.Panicf("Fetching LingQ words from database: %v", err)
+		logrus.WithError(err).Panic("Fetching LingQ words from database")
 	}
 
 	if words == nil {
-		log.Println("Database not fresh, fetching new words...")
+		logrus.Info("Database not fresh, fetching new words...")
 		fetchedWords, err := lingq.NewVocabularyClient(config.LingQAPIKey).GetNonNewWords()
 		if err != nil {
-			log.Panicf("Getting non-new words from LingQ: %v", err)
+			logrus.WithError(err).Panic("Getting non-new words from LingQ")
 		}
 		words = fetchedWords
 
-		log.Println("Storing fetched words in database...")
+		logrus.Info("Storing fetched words in database...")
 		if err := database.Store(words); err != nil {
-			log.Panicf("Storing LingQ words into database: %v", err)
+			logrus.WithError(err).Panic("Storing LingQ words into database")
 		}
 	}
 
-	log.Printf("Loaded %d words...", len(words))
+	logrus.WithField("count", len(words)).Info("Loaded words")
 
 	storyClient := gpt.NewStoryClient(config.OpenAIAPIKey, config.GPTModel)
 	story, err := storyClient.Create(words, 3)
 	if err != nil {
-		log.Panicf("Creating story: %v", err)
+		logrus.WithError(err).Panic("Creating story")
 	}
 
-	fmt.Printf("Got story: %s\n", story)
+	logrus.WithField("story", story).Info("Got story")
 }
 
 func GetVarsOrDieTrying() Config {
 	lingqAPIKey := os.Getenv("LINGQ_API_KEY")
 	if lingqAPIKey == "" {
-		log.Panic("LINGQ_API_KEY must be set!")
+		logrus.Panic("LINGQ_API_KEY must be set!")
 	}
 	lingqDatabasePath := os.Getenv("LINGQ_DATABASE_PATH")
 	if lingqDatabasePath == "" {
-		log.Panic("LINGQ_DATABASE_PATH must be set!")
+		logrus.Panic("LINGQ_DATABASE_PATH must be set!")
 	}
 	openAIAPIKey := os.Getenv("OPENAI_API_KEY")
 	if openAIAPIKey == "" {
-		log.Panic("OPENAI_API_KEY must be set!")
+		logrus.Panic("OPENAI_API_KEY must be set!")
 	}
 	gptModel := os.Getenv("GPT_MODEL")
 	if gptModel == "" {
-		log.Panic("GPT_MODEL must be set!")
+		logrus.Panic("GPT_MODEL must be set!")
 	}
 
 	return Config{

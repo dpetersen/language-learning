@@ -2,10 +2,13 @@ package gpt
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/dpetersen/language-learning/lingq"
 	"github.com/go-resty/resty/v2"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -40,19 +43,22 @@ type completionRequest struct {
 	User        string              `json:"user"`
 }
 
-func (c *StoryClient) Create(words []lingq.Word, threshold int) (string, error) {
-	var promptWords string
-	for _, word := range words {
-		if word.Status >= threshold {
-			promptWords += fmt.Sprintf("%s,%d\n", word.Term, word.Status)
+type completionResponse struct {
+	Choices []struct {
+		Message struct {
+			Content string
 		}
+		FinishReason string `json:"finish_reason"`
 	}
+}
+
+func (c *StoryClient) Create(words []lingq.Word, threshold int) (string, error) {
 	requestObject := completionRequest{
 		Model: c.model,
 		Messages: []completionMessage{
 			{
 				Role:    "system",
-				Content: "You are a Spanish tutor and you are teaching a student how to write a story in Spanish. The student is writing a story in Spanish using the following words with their familiarity levels. A higher number means the word is better known. Make sure the resulting story that it is roughly 95% comprehensible based on my known words:\n" + promptWords,
+				Content: "You are a Spanish tutor who teaches by telling stories using the theory of Comprehensible Input. You believe the student learns best when they understand 95% of the words they read or hear. Here is a vocabulary list for the student:\n" + wordsByStatus(words, threshold),
 			},
 			{
 				Role:    "user",
@@ -70,7 +76,7 @@ func (c *StoryClient) Create(words []lingq.Word, threshold int) (string, error) 
 		return "", fmt.Errorf("serializing request to JSON: %v", err)
 	}
 
-	fmt.Printf("Sending data: %+v\n", string(requestBody))
+	logrus.WithField("requestBody", string(requestBody)).Debug("Sending request to OpenAI API")
 	response, err := c.client.R().
 		SetAuthToken(c.apiKey).
 		SetHeader("Content-Type", "application/json").
@@ -80,14 +86,41 @@ func (c *StoryClient) Create(words []lingq.Word, threshold int) (string, error) 
 		return "", fmt.Errorf("making HTTP request: %v", err)
 	}
 
-	fmt.Printf("Got data: %s\n", response.Body())
+	logrus.WithField("response", string(response.Body())).Debug("Got response from OpenAI API")
 
-	// var data map[string]interface{}
-	// if err = json.Unmarshal(response.Body(), &data); err != nil {
-	//   return "", fmt.Errorf("decoding JSON response: %v", err)
-	// }
+	var responseObject completionResponse
+	if err = json.Unmarshal(response.Body(), &responseObject); err != nil {
+		return "", fmt.Errorf("decoding JSON response: %v", err)
+	}
 
-	// content := data["choices"].([]interface{})[0].(map[string]interface{})["message"].(map[string]interface{})["content"].(string)
+	if len(responseObject.Choices) == 0 {
+		return "", errors.New("no choices in response")
+	}
 
-	return "", nil
+	if responseObject.Choices[0].FinishReason != "stop" {
+		return "", fmt.Errorf("unexpected finish reason: %v", responseObject.Choices[0].FinishReason)
+	}
+
+	return responseObject.Choices[0].Message.Content, nil
+}
+
+func wordsByStatus(words []lingq.Word, threshold int) string {
+	statusMap := make(map[int][]string)
+
+	for _, word := range words {
+		if word.Status >= threshold {
+			statusMap[word.Status] = append(statusMap[word.Status], word.Term)
+		}
+	}
+
+	var result strings.Builder
+	for level := threshold; level <= lingq.MaxWordStatus; level++ {
+		if terms, exists := statusMap[level]; exists {
+			result.WriteString(lingq.WordStatusMeanings[level] + "\n")
+			result.WriteString(strings.Join(terms, ","))
+			result.WriteString("\n\n")
+		}
+	}
+
+	return result.String()
 }
