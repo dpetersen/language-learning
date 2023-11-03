@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/dpetersen/language-learning/lingq"
@@ -13,7 +14,47 @@ import (
 
 const (
 	completionsAPI = "https://api.openai.com/v1/chat/completions"
+	prompt         = `
+You are a Spanish tutor who teaches by telling stories using the theory of
+Comprehensible Input. You believe the student learns best when they understand
+over 95% of the words they read or hear. Keep the story around 500-700 words.
+For new words, you should favor words that are in the top 1000 most common
+words in Spanish.
+
+After each story, ask the student 5 questions in Spanish about the story. The
+point is to reinforce the vocabulary from the story.
+
+I want the response in the form of a valid JSON object. Here is an example:
+
+{
+	"title": "Juan's Trip to France",
+	"description": "Juan takes a trip to France and learns the true meaning of friendship.",
+	"story": "Once upon a time there was a boy named Juan. He wanted to travel to France. He thought it was a beautiful country.\nHe had a friend named Maria. She wanted to travel to France too. They decided to travel to France together. They had a great time. They learned a lot about French culture. They learned a lot about each other.\nThey became best friends. The end.",
+	"questions": [
+		{
+			"question": "Where does Juan want to travel to?",
+			"answer": "Juan wants to travel to France. He thinks it is a beautiful country."
+		}
+	]
+}
+
+Here is a vocabulary list for the student:
+`
 )
+
+type Question struct {
+	Question string
+	Answer   string
+}
+
+type Story struct {
+	Title       string
+	Description string
+	Story       string
+	Questions   []Question
+
+	OriginalJSON string
+}
 
 type StoryClient struct {
 	client *resty.Client
@@ -52,18 +93,27 @@ type completionResponse struct {
 	}
 }
 
-func (c *StoryClient) Create(words []lingq.Word, threshold int) (string, error) {
+func (c *StoryClient) Load(path string) (*Story, error) {
+	s, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading file: %v", err)
+	}
+
+	story, err := contentJSONToStory(string(s))
+	if err != nil {
+		return nil, fmt.Errorf("decoding story: %v", err)
+	}
+
+	return story, nil
+}
+
+func (c *StoryClient) Create(words []lingq.Word, threshold int) (*Story, error) {
 	requestObject := completionRequest{
 		Model: c.model,
 		Messages: []completionMessage{
 			{
-				Role: "system",
-				Content: `
-				You are a Spanish tutor who teaches by telling stories using the theory of Comprehensible Input. You believe the student learns best when they understand 95% of the words they read or hear. Keep the story around 500-700 words.
-
-				After each story, ask the student 5 questions in Spanish about the story afterwards, but giving them the answer as part of the question (e.g. Juan wants to travel to France. Where does Juan want to travel?)
-
-				Here is a vocabulary list for the student:\n` + wordsByStatus(words, threshold),
+				Role:    "system",
+				Content: prompt + wordsByStatus(words, threshold),
 			},
 			{
 				Role:    "user",
@@ -78,7 +128,7 @@ func (c *StoryClient) Create(words []lingq.Word, threshold int) (string, error) 
 
 	requestBody, err := json.Marshal(requestObject)
 	if err != nil {
-		return "", fmt.Errorf("serializing request to JSON: %v", err)
+		return nil, fmt.Errorf("serializing request to JSON: %v", err)
 	}
 
 	logrus.WithField("requestBody", string(requestBody)).Debug("Sending request to OpenAI API")
@@ -88,25 +138,40 @@ func (c *StoryClient) Create(words []lingq.Word, threshold int) (string, error) 
 		SetBody(requestBody).
 		Post(completionsAPI)
 	if err != nil {
-		return "", fmt.Errorf("making HTTP request: %v", err)
+		return nil, fmt.Errorf("making HTTP request: %v", err)
 	}
 
 	logrus.WithField("response", string(response.Body())).Debug("Got response from OpenAI API")
 
 	var responseObject completionResponse
 	if err = json.Unmarshal(response.Body(), &responseObject); err != nil {
-		return "", fmt.Errorf("decoding JSON response: %v", err)
+		return nil, fmt.Errorf("decoding JSON response: %v", err)
 	}
 
 	if len(responseObject.Choices) == 0 {
-		return "", errors.New("no choices in response")
+		return nil, errors.New("no choices in response")
 	}
 
 	if responseObject.Choices[0].FinishReason != "stop" {
-		return "", fmt.Errorf("unexpected finish reason: %v", responseObject.Choices[0].FinishReason)
+		return nil, fmt.Errorf("unexpected finish reason: %v", responseObject.Choices[0].FinishReason)
 	}
 
-	return responseObject.Choices[0].Message.Content, nil
+	story, err := contentJSONToStory(responseObject.Choices[0].Message.Content)
+	if err != nil {
+		return nil, fmt.Errorf("decoding story: %v", err)
+	}
+
+	return story, nil
+}
+
+func contentJSONToStory(s string) (*Story, error) {
+	var story Story
+	if err := json.Unmarshal([]byte(s), &story); err != nil {
+		return nil, fmt.Errorf("decoding JSON: %v", err)
+	}
+	story.OriginalJSON = s
+
+	return &story, nil
 }
 
 func wordsByStatus(words []lingq.Word, threshold int) string {

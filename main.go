@@ -20,6 +20,18 @@ Todo List:
 - generates text-to-speech audio from script
 - pushes back text and audio to LingQ as new import
 
+Additional Stuff:
+	- Get GPT to write you a title and short description of the story
+	- Make the prompt add variety to the stories
+	- Use DALL-E to generate images for the stories (3 isn't available in the API yet, but whatever)
+	- Make it possible to tweak the speed of the speech. It's a little fast right now.
+	- Use the SSML <voice> tag to help with dialogue: https://cloud.google.com/text-to-speech/docs/ssml#voice
+	- Consider having an English speaker (with the <voice> tag) go over the vocabulary from the story that is new after each?
+	- Work in high frequency words from the target language that aren't already
+	in your vocabulary. Might be able to just tell ChatGPT this instead of having
+	to provide the list:
+	  - https://strommeninc.com/1000-most-common-spanish-words-frequency-vocabulary/
+
 */
 
 type Config struct {
@@ -27,6 +39,7 @@ type Config struct {
 	LingQDatabasePath string
 	OpenAIAPIKey      string
 	GPTModel          string
+	LoadStoryFile     string
 }
 
 func init() {
@@ -40,48 +53,20 @@ func init() {
 func main() {
 	config := GetVarsOrDieTrying()
 
-	logrus.Info("Checking local database...")
-	database := lingq.NewWordDatabase(config.LingQDatabasePath)
-	words, err := database.FetchIfFresh()
-	if err != nil {
-		logrus.WithError(err).Fatal("Fetching LingQ words from database")
-	}
+	words := LoadWords(config)
+	story := LoadStory(config, words)
 
-	if words == nil {
-		logrus.Info("Database not fresh, fetching new words...")
-		fetchedWords, err := lingq.NewVocabularyClient(config.LingQAPIKey).GetNonNewWords()
-		if err != nil {
-			logrus.WithError(err).Fatal("Getting non-new words from LingQ")
-		}
-		words = fetchedWords
-
-		logrus.Info("Storing fetched words in database...")
-		if err := database.Store(words); err != nil {
-			logrus.WithError(err).Fatal("Storing LingQ words into database")
-		}
-	}
-
-	logrus.WithField("count", len(words)).Info("Loaded words")
-
-	storyClient := gpt.NewStoryClient(config.OpenAIAPIKey, config.GPTModel)
-	story, err := storyClient.Create(words, 3)
-	if err != nil {
-		logrus.WithError(err).Fatal("Creating story")
-	}
-
-	logrus.WithField("story", story).Info("Got story")
-
-	transcriptFile, err := os.Create("output.txt")
+	transcriptFile, err := os.Create("output.json")
 	if err != nil {
 		logrus.WithError(err).Fatal("failed to create transcript")
 	}
 	defer transcriptFile.Close()
 
-	if _, err = transcriptFile.WriteString(story); err != nil {
+	if _, err = transcriptFile.WriteString(story.OriginalJSON); err != nil {
 		logrus.WithError(err).Fatal("Failed to write to file")
 	}
 
-	audio, err := audio.NewAudioClient().TextToSpeech(story)
+	audio, err := audio.NewAudioClient().TextToSpeech(*story)
 	if err != nil {
 		logrus.WithError(err).Fatal("Generating audio")
 	}
@@ -114,11 +99,61 @@ func GetVarsOrDieTrying() Config {
 	if gptModel == "" {
 		logrus.Fatal("GPT_MODEL must be set!")
 	}
+	loadStoryFile := os.Getenv("LOAD_STORY_FILE")
 
 	return Config{
 		LingQAPIKey:       lingqAPIKey,
 		LingQDatabasePath: lingqDatabasePath,
 		OpenAIAPIKey:      openAIAPIKey,
 		GPTModel:          gptModel,
+		LoadStoryFile:     loadStoryFile,
+	}
+}
+
+func LoadWords(config Config) []lingq.Word {
+	logrus.Info("Checking local database...")
+	database := lingq.NewWordDatabase(config.LingQDatabasePath)
+	words, err := database.FetchIfFresh()
+	if err != nil {
+		logrus.WithError(err).Fatal("Fetching LingQ words from database")
+	}
+
+	if words == nil {
+		logrus.Info("Database not fresh, fetching new words...")
+		fetchedWords, err := lingq.NewVocabularyClient(config.LingQAPIKey).GetNonNewWords()
+		if err != nil {
+			logrus.WithError(err).Fatal("Getting non-new words from LingQ")
+		}
+		words = fetchedWords
+
+		logrus.Info("Storing fetched words in database...")
+		if err := database.Store(words); err != nil {
+			logrus.WithError(err).Fatal("Storing LingQ words into database")
+		}
+	}
+
+	logrus.WithField("count", len(words)).Info("Loaded words")
+	return words
+}
+
+func LoadStory(config Config, words []lingq.Word) *gpt.Story {
+	storyClient := gpt.NewStoryClient(config.OpenAIAPIKey, config.GPTModel)
+
+	if config.LoadStoryFile == "" {
+		story, err := storyClient.Create(words, 3)
+		if err != nil {
+			logrus.WithError(err).Fatal("Creating story")
+		}
+
+		logrus.WithField("storyCharacters", len(story.Description)).Info("Got story")
+
+		return story
+	} else {
+		logrus.Info("Skipping story generation, loading from file...")
+		story, err := storyClient.Load(config.LoadStoryFile)
+		if err != nil {
+			logrus.WithError(err).Fatal("Loading story from file")
+		}
+		return story
 	}
 }
