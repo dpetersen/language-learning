@@ -8,13 +8,11 @@ import (
 	"strings"
 
 	"github.com/dpetersen/language-learning/lingq"
-	"github.com/go-resty/resty/v2"
-	"github.com/sirupsen/logrus"
 )
 
 const (
 	completionsAPI = "https://api.openai.com/v1/chat/completions"
-	prompt         = `
+	storyPrompt    = `
 You are a Spanish tutor who teaches by telling stories using the theory of
 Comprehensible Input. You believe the student learns best when they understand
 over 95% of the words they read or hear. Keep the story around 500-700 words.
@@ -54,20 +52,7 @@ type Story struct {
 	Questions   []Question
 
 	OriginalJSON string
-}
-
-type StoryClient struct {
-	client *resty.Client
-	model  string
-	apiKey string
-}
-
-func NewStoryClient(apiKey, model string) *StoryClient {
-	return &StoryClient{
-		client: resty.New(),
-		model:  model,
-		apiKey: apiKey,
-	}
+	Thumbnail    string
 }
 
 type completionMessage struct {
@@ -96,7 +81,7 @@ type completionResponse struct {
 	}
 }
 
-func (c *StoryClient) Load(path string) (*Story, error) {
+func (c *Client) LoadStory(path string) (*Story, error) {
 	s, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading file: %v", err)
@@ -110,13 +95,13 @@ func (c *StoryClient) Load(path string) (*Story, error) {
 	return story, nil
 }
 
-func (c *StoryClient) Create(words []lingq.Word, threshold int) (*Story, error) {
+func (c *Client) CreateStory(words []lingq.Word, threshold int) (*Story, error) {
 	requestObject := completionRequest{
 		Model: c.model,
 		Messages: []completionMessage{
 			{
 				Role:    "system",
-				Content: prompt + wordsByStatus(words, threshold),
+				Content: storyPrompt + wordsByStatus(words, threshold),
 			},
 			{
 				Role:    "user",
@@ -126,30 +111,13 @@ func (c *StoryClient) Create(words []lingq.Word, threshold int) (*Story, error) 
 		MaxTokens:   1000,
 		N:           1,
 		Temperature: 0.7,
-		User:        "Language Learning",
+		User:        apiUserName,
 	}
 	requestObject.ResponseFormat.Type = "json_object"
 
-	requestBody, err := json.Marshal(requestObject)
-	if err != nil {
-		return nil, fmt.Errorf("serializing request to JSON: %v", err)
-	}
-
-	logrus.WithField("requestBody", string(requestBody)).Debug("Sending request to OpenAI API")
-	response, err := c.client.R().
-		SetAuthToken(c.apiKey).
-		SetHeader("Content-Type", "application/json").
-		SetBody(requestBody).
-		Post(completionsAPI)
-	if err != nil {
-		return nil, fmt.Errorf("making HTTP request: %v", err)
-	}
-
-	logrus.WithField("response", string(response.Body())).Debug("Got response from OpenAI API")
-
 	var responseObject completionResponse
-	if err = json.Unmarshal(response.Body(), &responseObject); err != nil {
-		return nil, fmt.Errorf("decoding JSON response: %v", err)
+	if err := c.makeAPICall(requestObject, completionsAPI, &responseObject); err != nil {
+		return nil, fmt.Errorf("calling completions API: %v", err)
 	}
 
 	if len(responseObject.Choices) == 0 {

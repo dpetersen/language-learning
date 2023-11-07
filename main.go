@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"os"
 
 	"github.com/dpetersen/language-learning/audio"
@@ -56,27 +57,40 @@ func main() {
 	words := LoadWords(config)
 	story := LoadStory(config, words)
 
+	// Write Story to JSON
 	transcriptFile, err := os.Create("output.json")
 	if err != nil {
 		logrus.WithError(err).Fatal("failed to create transcript")
 	}
 	defer transcriptFile.Close()
-
 	if _, err = transcriptFile.WriteString(story.OriginalJSON); err != nil {
 		logrus.WithError(err).Fatal("Failed to write to file")
 	}
 
+	// Write thumbnail to PNG
+	imageFile, err := os.Create("output.png")
+	if err != nil {
+		logrus.WithError(err).Fatal("failed to create transcript")
+	}
+	defer imageFile.Close()
+	decodedBytes, err := base64.StdEncoding.DecodeString(story.Thumbnail)
+	if err != nil {
+		logrus.WithError(err).Fatal("Failed to base64 decode thumbnail")
+	}
+	if _, err = imageFile.Write(decodedBytes); err != nil {
+		logrus.WithError(err).Fatal("Failed to write to file")
+	}
+
+	// Write audio to MP3
 	audio, err := audio.NewAudioClient().TextToSpeech(*story)
 	if err != nil {
 		logrus.WithError(err).Fatal("Generating audio")
 	}
-
 	audioFile, err := os.Create("output.mp3")
 	if err != nil {
 		logrus.WithError(err).Fatal("failed to create audio file")
 	}
 	defer audioFile.Close()
-
 	if _, err = audioFile.Write(audio); err != nil {
 		logrus.WithError(err).Fatal("Failed to write audio to file")
 	}
@@ -137,20 +151,26 @@ func LoadWords(config Config) []lingq.Word {
 }
 
 func LoadStory(config Config, words []lingq.Word) *gpt.Story {
-	storyClient := gpt.NewStoryClient(config.OpenAIAPIKey, config.GPTModel)
+	client := gpt.NewClient(config.OpenAIAPIKey, config.GPTModel)
 
 	if config.LoadStoryFile == "" {
-		story, err := storyClient.Create(words, 3)
+		story, err := client.CreateStory(words, 3)
 		if err != nil {
 			logrus.WithError(err).Fatal("Creating story")
 		}
 
 		logrus.WithField("storyCharacters", len(story.Description)).Info("Got story")
 
+		data, err := client.CreateImage(story.Story)
+		if err != nil {
+			logrus.WithError(err).Fatal("Creating thumbnail image")
+		}
+
+		story.Thumbnail = data
 		return story
 	} else {
 		logrus.Info("Skipping story generation, loading from file...")
-		story, err := storyClient.Load(config.LoadStoryFile)
+		story, err := client.LoadStory(config.LoadStoryFile)
 		if err != nil {
 			logrus.WithError(err).Fatal("Loading story from file")
 		}
