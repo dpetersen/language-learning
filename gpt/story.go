@@ -76,12 +76,15 @@ type completionMessage struct {
 }
 
 type completionRequest struct {
-	Model       string              `json:"model"`
-	Messages    []completionMessage `json:"messages"`
-	MaxTokens   int                 `json:"max_tokens"`
-	N           int                 `json:"n"`
-	Temperature float64             `json:"temperature"`
-	User        string              `json:"user"`
+	Model          string              `json:"model"`
+	Messages       []completionMessage `json:"messages"`
+	MaxTokens      int                 `json:"max_tokens"`
+	N              int                 `json:"n"`
+	Temperature    float64             `json:"temperature"`
+	User           string              `json:"user"`
+	ResponseFormat struct {
+		Type string `json:"type"`
+	} `json:"response_format"`
 }
 
 type completionResponse struct {
@@ -125,6 +128,7 @@ func (c *StoryClient) Create(words []lingq.Word, threshold int) (*Story, error) 
 		Temperature: 0.7,
 		User:        "Language Learning",
 	}
+	requestObject.ResponseFormat.Type = "json_object"
 
 	requestBody, err := json.Marshal(requestObject)
 	if err != nil {

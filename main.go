@@ -23,7 +23,7 @@ Todo List:
 Additional Stuff:
 	- Get GPT to write you a title and short description of the story
 	- Make the prompt add variety to the stories
-	- Use DALL-E to generate images for the stories (3 isn't available in the API yet, but whatever)
+	- Use DALL-E to generate images for the stories (v3 API support just released as beta)
 	- Make it possible to tweak the speed of the speech. It's a little fast right now.
 	- Use the SSML <voice> tag to help with dialogue: https://cloud.google.com/text-to-speech/docs/ssml#voice
 	- Consider having an English speaker (with the <voice> tag) go over the vocabulary from the story that is new after each?
