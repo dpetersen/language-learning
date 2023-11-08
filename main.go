@@ -145,7 +145,9 @@ func LoadWords() ([]lingq.Word, *lingq.Client) {
 		}
 		words = fetchedWords
 
-		logrus.Info("Storing fetched words in database...")
+		if len(words) == 0 {
+			logrus.Fatal("No vocabulary found!")
+		}
 		if err := database.Store(words); err != nil {
 			logrus.WithError(err).Fatal("Storing LingQ words into database")
 		}
@@ -156,10 +158,6 @@ func LoadWords() ([]lingq.Word, *lingq.Client) {
 }
 
 func LoadStory(words []lingq.Word) *gpt.Story {
-	logrus.WithField(
-		"openai.api_key",
-		viper.GetString("openai.api_key"),
-	).Info("Creating OpenAI client...")
 	client := gpt.NewClient(
 		viper.GetString("openai.api_key"),
 		viper.GetString("openai.chat_model"),

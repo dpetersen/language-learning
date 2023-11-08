@@ -1,5 +1,17 @@
 openai:
-  http_debug: true
+  http_debug: false
   chat_model: gpt4
+  story_instructions: |-
+    You are a Spanish tutor who teaches by telling stories using the theory of
+    Comprehensible Input. You believe the student learns best when they understand
+    over 95% of the words they read or hear.
+
+    When introducing new vocabulary, you should favor words that are in the top
+    1000 most common words in Spanish.
+  story_length: 2000
+  story_prompt: |-
+    Please write me a story that I can understand. I am a beginner, but I'm an
+    adult and would like to read something aimed at a mature audience. I would
+    like the tale to involve the supernatural.
 lingq:
   http_debug: false

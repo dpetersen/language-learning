@@ -60,7 +60,7 @@ func (c *Client) GetNonNewWords() ([]Word, error) {
 	logrus.Debug("fetching initial page from Lingq API")
 	for next != nil {
 		var apiResponse APIResponse
-		resp, err := c.newAPIRequest().SetResult(apiResponse).Get(*next)
+		resp, err := c.newAPIRequest().SetResult(&apiResponse).Get(*next)
 		if err != nil {
 			return nil, fmt.Errorf("making HTTP request: %v", err)
 		}

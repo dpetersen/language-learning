@@ -8,17 +8,12 @@ import (
 	"strings"
 
 	"github.com/dpetersen/language-learning/lingq"
+	"github.com/spf13/viper"
 )
 
 const (
-	completionsAPI = "https://api.openai.com/v1/chat/completions"
-	storyPrompt    = `
-You are a Spanish tutor who teaches by telling stories using the theory of
-Comprehensible Input. You believe the student learns best when they understand
-over 95% of the words they read or hear. Keep the story around 500-700 words.
-When introducing new vocabulary, you should favor words that are in the top
-1000 most common words in Spanish.
-
+	completionsAPI     = "https://api.openai.com/v1/chat/completions"
+	formatInstructions = `
 After each story, ask the student 5 questions in Spanish about the story. The
 point is to reinforce the vocabulary from the story.
 
@@ -39,45 +34,9 @@ I want the response in the form of a valid JSON object. Here is an example:
 		}
 	]
 }
-
 Here is a vocabulary list for the student:
 `
 )
-
-type Question struct {
-	Question string
-	Answer   string
-}
-
-type Story struct {
-	Title       string
-	Description string
-	Story       string
-	Questions   []Question
-
-	OriginalJSON string
-	Thumbnail    string
-}
-
-func (s Story) ToString() string {
-	var result strings.Builder
-
-	result.WriteString(s.Title)
-	result.WriteString("\n\n")
-	for _, paragraph := range strings.Split(s.Story, "\n") {
-		result.WriteString(paragraph)
-		result.WriteString("\n\n")
-	}
-	result.WriteString("Preguntas:\n\n")
-	for _, question := range s.Questions {
-		result.WriteString(question.Question)
-		result.WriteString("\n\n")
-		result.WriteString(question.Answer)
-		result.WriteString("\n\n")
-	}
-
-	return result.String()
-}
 
 type completionMessage struct {
 	Role    string `json:"role"`
@@ -124,15 +83,21 @@ func (c *Client) CreateStory(words []lingq.Word, threshold int) (*Story, error) 
 		Model: c.model,
 		Messages: []completionMessage{
 			{
-				Role:    "system",
-				Content: storyPrompt + wordsByStatus(words, threshold),
+				Role: "system",
+				Content: viper.GetString("openai.story_instructions") +
+					"\n\n" +
+					fmt.Sprintf("Please make the story in the neighborhood of %d words.\n\n", viper.GetInt("openai.story_length")) +
+					formatInstructions +
+					wordsByStatus(words, threshold),
 			},
 			{
 				Role:    "user",
-				Content: "Please write me a story that I can understand. I am a beginner.",
+				Content: viper.GetString("openai.story_prompt"),
 			},
 		},
-		MaxTokens:   1000,
+		// TODO could count the length of the prompt and do this intelligently,
+		// instead of just adding 500
+		MaxTokens:   viper.GetInt("openai.story_length") + 500,
 		N:           1,
 		Temperature: 0.7,
 		User:        apiUserName,
