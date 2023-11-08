@@ -3,25 +3,23 @@ package main
 import (
 	"encoding/base64"
 	"os"
+	"strings"
 
 	"github.com/dpetersen/language-learning/audio"
 	"github.com/dpetersen/language-learning/gpt"
 	"github.com/dpetersen/language-learning/lingq"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 /*
 
 Todo List:
-	- Make the Info logging more consistent about what's happening
-		- Probably make it the default level? There's not much to watch if it's on
-		a higher level.
 	- Make the prompt add variety to the stories
 	  - Summarize Wikipedia pages or news articles
 		- Use prompts to generate ideas from best seller lists, etc
 		- Maybe just prompt on the CLI for what you want the story to be about?
 		- Generate fake "podcasts" (using the voice tag in SSML for this?) about whatever topics you want
-	- Move your hardcoded stuff into configuration, maybe with Viper
 
 Additional Ideas:
 	- Use the SSML <voice> tag to help with dialogue: https://cloud.google.com/text-to-speech/docs/ssml#voice
@@ -29,28 +27,30 @@ Additional Ideas:
 	  - This doesn't really jive with how LingQ works, unless there's a separate field for "Lesson Notes" or something?
 */
 
-type Config struct {
-	LingQAPIKey       string
-	LingQDatabasePath string
-	OpenAIAPIKey      string
-	GPTModel          string
-	LoadStoryFile     string
-}
+var loadStoryFile string
 
 func init() {
-	logrus.SetLevel(logrus.InfoLevel)
-	if level := os.Getenv("LOG_LEVEL"); level != "" {
-		if parsed, err := logrus.ParseLevel(level); err == nil {
-			logrus.SetLevel(parsed)
-		}
-	}
+	viper.SetEnvPrefix("LL")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
+	viper.SetConfigName("config")
+	viper.AddConfigPath(".")
+
+	viper.SetDefault("log_level", "info")
+	viper.SetDefault("lingq.database_path", "lingq-data.json")
 }
 
 func main() {
-	config := GetVarsOrDieTrying()
+	if err := viper.ReadInConfig(); err != nil {
+		logrus.WithError(err).Fatal("Error reading config file")
+	}
 
-	words, lingqClient := LoadWords(config)
-	story := LoadStory(config, words)
+	if parsed, err := logrus.ParseLevel(viper.GetString("log_level")); err == nil {
+		logrus.SetLevel(parsed)
+	}
+
+	words, lingqClient := LoadWords()
+	story := LoadStory(words)
 
 	// Write Story to JSON
 	jsonFile, err := os.Create("output.json")
@@ -113,43 +113,30 @@ func main() {
 	}
 }
 
-func GetVarsOrDieTrying() Config {
-	lingqAPIKey := os.Getenv("LINGQ_API_KEY")
-	if lingqAPIKey == "" {
-		logrus.Fatal("LINGQ_API_KEY must be set!")
+func GetVarsOrDieTrying() {
+	required := []string{
+		"lingq.api_key",
+		"openai.api_key",
+		"openai.chat_model",
 	}
-	lingqDatabasePath := os.Getenv("LINGQ_DATABASE_PATH")
-	if lingqDatabasePath == "" {
-		logrus.Fatal("LINGQ_DATABASE_PATH must be set!")
-	}
-	openAIAPIKey := os.Getenv("OPENAI_API_KEY")
-	if openAIAPIKey == "" {
-		logrus.Fatal("OPENAI_API_KEY must be set!")
-	}
-	gptModel := os.Getenv("GPT_MODEL")
-	if gptModel == "" {
-		logrus.Fatal("GPT_MODEL must be set!")
-	}
-	loadStoryFile := os.Getenv("LOAD_STORY_FILE")
 
-	return Config{
-		LingQAPIKey:       lingqAPIKey,
-		LingQDatabasePath: lingqDatabasePath,
-		OpenAIAPIKey:      openAIAPIKey,
-		GPTModel:          gptModel,
-		LoadStoryFile:     loadStoryFile,
+	for _, key := range required {
+		if viper.GetString(key) == "" {
+			logrus.WithField("key", key).Fatal("Must be set!")
+		}
 	}
+	loadStoryFile = os.Getenv("LOAD_STORY_FILE")
 }
 
-func LoadWords(config Config) ([]lingq.Word, *lingq.Client) {
+func LoadWords() ([]lingq.Word, *lingq.Client) {
 	logrus.Info("Checking local database...")
-	database := lingq.NewWordDatabase(config.LingQDatabasePath)
+	database := lingq.NewWordDatabase(viper.GetString("lingq.database_path"))
 	words, err := database.FetchIfFresh()
 	if err != nil {
 		logrus.WithError(err).Fatal("Fetching LingQ words from database")
 	}
 
-	client := lingq.NewClient(config.LingQAPIKey)
+	client := lingq.NewClient(viper.GetString("lingq.api_key"))
 	if words == nil {
 		logrus.Info("Database not fresh, fetching new words...")
 		fetchedWords, err := client.GetNonNewWords()
@@ -168,10 +155,17 @@ func LoadWords(config Config) ([]lingq.Word, *lingq.Client) {
 	return words, client
 }
 
-func LoadStory(config Config, words []lingq.Word) *gpt.Story {
-	client := gpt.NewClient(config.OpenAIAPIKey, config.GPTModel)
+func LoadStory(words []lingq.Word) *gpt.Story {
+	logrus.WithField(
+		"openai.api_key",
+		viper.GetString("openai.api_key"),
+	).Info("Creating OpenAI client...")
+	client := gpt.NewClient(
+		viper.GetString("openai.api_key"),
+		viper.GetString("openai.chat_model"),
+	)
 
-	if config.LoadStoryFile == "" {
+	if loadStoryFile == "" {
 		logrus.Info("Generating story...")
 
 		story, err := client.CreateStory(words, 3)
@@ -190,7 +184,7 @@ func LoadStory(config Config, words []lingq.Word) *gpt.Story {
 		return story
 	} else {
 		logrus.Info("Skipping story generation, loading from file...")
-		story, err := client.LoadStory(config.LoadStoryFile)
+		story, err := client.LoadStory(loadStoryFile)
 		if err != nil {
 			logrus.WithError(err).Fatal("Loading story from file")
 		}

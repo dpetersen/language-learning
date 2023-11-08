@@ -3,10 +3,10 @@ package gpt
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 const apiUserName = "Language Learning"
@@ -19,17 +19,13 @@ type Client struct {
 
 func NewClient(apiKey, model string) *Client {
 	return &Client{
-		client: resty.New(),
+		client: resty.New().SetDebug(viper.GetBool("openai.http_debug")),
 		model:  model,
 		apiKey: apiKey,
 	}
 }
 
 func (c *Client) makeAPICall(requestObject interface{}, url string, responseObject interface{}) error {
-	if os.Getenv("GPT_HTTP_DEBUG") == "true" {
-		c.client.SetDebug(true)
-	}
-
 	requestBody, err := json.Marshal(requestObject)
 	if err != nil {
 		return fmt.Errorf("serializing request to JSON: %v", err)

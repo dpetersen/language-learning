@@ -1,0 +1,5 @@
+openai:
+  http_debug: true
+  chat_model: gpt4
+lingq:
+  http_debug: false
