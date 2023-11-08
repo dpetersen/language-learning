@@ -38,6 +38,7 @@ type Config struct {
 }
 
 func init() {
+	logrus.SetLevel(logrus.InfoLevel)
 	if level := os.Getenv("LOG_LEVEL"); level != "" {
 		if parsed, err := logrus.ParseLevel(level); err == nil {
 			logrus.SetLevel(parsed)
@@ -86,6 +87,7 @@ func main() {
 	}
 
 	// Write audio to MP3
+	logrus.Info("Generating audio...")
 	audio, err := audio.NewAudioClient().TextToSpeech(*story)
 	if err != nil {
 		logrus.WithError(err).Fatal("Generating audio")
@@ -99,6 +101,7 @@ func main() {
 		logrus.WithError(err).Fatal("Failed to write audio to file")
 	}
 
+	logrus.Info("Importing lesson to LingQ...")
 	if err := lingqClient.ImportLesson(
 		textFile.Name(),
 		audioFile.Name(),
@@ -169,12 +172,14 @@ func LoadStory(config Config, words []lingq.Word) *gpt.Story {
 	client := gpt.NewClient(config.OpenAIAPIKey, config.GPTModel)
 
 	if config.LoadStoryFile == "" {
+		logrus.Info("Generating story...")
+
 		story, err := client.CreateStory(words, 3)
 		if err != nil {
 			logrus.WithError(err).Fatal("Creating story")
 		}
 
-		logrus.WithField("storyCharacters", len(story.Description)).Info("Got story")
+		logrus.WithField("storyCharacters", len(story.Story)).Info("Generated Story")
 
 		data, err := client.CreateImage(story.Story)
 		if err != nil {
