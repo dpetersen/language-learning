@@ -16,8 +16,8 @@ const (
 You are a Spanish tutor who teaches by telling stories using the theory of
 Comprehensible Input. You believe the student learns best when they understand
 over 95% of the words they read or hear. Keep the story around 500-700 words.
-For new words, you should favor words that are in the top 1000 most common
-words in Spanish.
+When introducing new vocabulary, you should favor words that are in the top
+1000 most common words in Spanish.
 
 After each story, ask the student 5 questions in Spanish about the story. The
 point is to reinforce the vocabulary from the story.
@@ -32,6 +32,10 @@ I want the response in the form of a valid JSON object. Here is an example:
 		{
 			"question": "Where does Juan want to travel to?",
 			"answer": "Juan wants to travel to France. He thinks it is a beautiful country."
+		},
+		{
+			"question": "Is Maria Juan's sister?",
+			"answer": "No, Maria is Juan's friend."
 		}
 	]
 }
@@ -53,6 +57,26 @@ type Story struct {
 
 	OriginalJSON string
 	Thumbnail    string
+}
+
+func (s Story) ToString() string {
+	var result strings.Builder
+
+	result.WriteString(s.Title)
+	result.WriteString("\n\n")
+	for _, paragraph := range strings.Split(s.Story, "\n") {
+		result.WriteString(paragraph)
+		result.WriteString("\n\n")
+	}
+	result.WriteString("Preguntas:\n\n")
+	for _, question := range s.Questions {
+		result.WriteString(question.Question)
+		result.WriteString("\n\n")
+		result.WriteString(question.Answer)
+		result.WriteString("\n\n")
+	}
+
+	return result.String()
 }
 
 type completionMessage struct {

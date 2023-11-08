@@ -1,7 +1,6 @@
 package lingq
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/go-resty/resty/v2"
@@ -19,8 +18,8 @@ const MaxWordStatus = 5
 var WordStatusMeanings = map[int]string{
 	1: "New: not learned",
 	2: "Recognized: not learned but I have seen this before",
-	3: "Familiar: I frequently remember seeing this word and sometimes remember the meaning",
-	4: "Learned: I know this word and almost always recognize when read or heard",
+	3: "Familiar: I usually remember seeing this word and often recall its meaning, though sometimes I forget",
+	4: "Learned: I know this word and almost always recognize it",
 	5: "Known: I have mastered this word and can use it in a sentence",
 }
 
@@ -29,7 +28,7 @@ type Word struct {
 	Status int
 }
 
-type VocabularyClient struct {
+type Client struct {
 	apiKey string
 	client *resty.Client
 }
@@ -54,30 +53,19 @@ const (
 	cardsPath = v3Path + "/es/cards/"
 )
 
-func NewVocabularyClient(apiKey string) *VocabularyClient {
-	return &VocabularyClient{
-		apiKey: apiKey,
-		client: resty.New(),
-	}
-}
-
-func (c *VocabularyClient) GetNonNewWords() ([]Word, error) {
+func (c *Client) GetNonNewWords() ([]Word, error) {
 	var words []Word
 	next := strPtr(cardsPath + "?page=1&page_size=200&sort=alpha&status=2&status=3&status=4&status=5")
 
 	logrus.Debug("fetching initial page from Lingq API")
 	for next != nil {
-		resp, err := c.newAPIRequest().Get(*next)
+		var apiResponse APIResponse
+		resp, err := c.newAPIRequest().SetResult(apiResponse).Get(*next)
 		if err != nil {
 			return nil, fmt.Errorf("making HTTP request: %v", err)
 		}
 
 		logrus.WithField("response", string(resp.Body())).Debug("Got response from Lingq API")
-		var apiResponse APIResponse
-		if err := json.Unmarshal(resp.Body(), &apiResponse); err != nil {
-			return nil, fmt.Errorf("deserializing API response: %v", err)
-		}
-
 		for _, result := range apiResponse.Results {
 			words = append(
 				words,
@@ -90,12 +78,6 @@ func (c *VocabularyClient) GetNonNewWords() ([]Word, error) {
 	}
 
 	return words, nil
-}
-
-func (c *VocabularyClient) newAPIRequest() *resty.Request {
-	return c.client.R().
-		SetHeader("Authorization", "Token "+c.apiKey).
-		SetHeader("accept", "application/json")
 }
 
 func strPtr(s string) *string {

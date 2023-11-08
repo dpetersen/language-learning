@@ -37,7 +37,11 @@ func storyToSSML(story gpt.Story) string {
 		result.WriteString(paragraph)
 		result.WriteString("</p>")
 	}
-	result.WriteString(`<break time="4s"/>`)
+	result.WriteString(`<break time="3s"/>`)
+	result.WriteString("<p>")
+	result.WriteString("Preguntas:")
+	result.WriteString("</p>")
+	result.WriteString(`<break time="1s"/>`)
 	for _, question := range story.Questions {
 		result.WriteString("<p>")
 		result.WriteString(question.Question)

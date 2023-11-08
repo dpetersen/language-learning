@@ -13,26 +13,20 @@ import (
 /*
 
 Todo List:
-
-- syncs vocabulary from LingQ to local
-- sends vocabulary and prompt to GPT to build comprehensible input
-  - completely invented fictional stories
-  - summaries of Wikipedia pages or news articles?
-- generates text-to-speech audio from script
-- pushes back text and audio to LingQ as new import
-
-Additional Stuff:
-	- Get GPT to write you a title and short description of the story
+	- Make the Info logging more consistent about what's happening
+		- Probably make it the default level? There's not much to watch if it's on
+		a higher level.
 	- Make the prompt add variety to the stories
-	- Use DALL-E to generate images for the stories (v3 API support just released as beta)
-	- Make it possible to tweak the speed of the speech. It's a little fast right now.
+	  - Summarize Wikipedia pages or news articles
+		- Use prompts to generate ideas from best seller lists, etc
+		- Maybe just prompt on the CLI for what you want the story to be about?
+		- Generate fake "podcasts" (using the voice tag in SSML for this?) about whatever topics you want
+	- Move your hardcoded stuff into configuration, maybe with Viper
+
+Additional Ideas:
 	- Use the SSML <voice> tag to help with dialogue: https://cloud.google.com/text-to-speech/docs/ssml#voice
 	- Consider having an English speaker (with the <voice> tag) go over the vocabulary from the story that is new after each?
-	- Work in high frequency words from the target language that aren't already
-	in your vocabulary. Might be able to just tell ChatGPT this instead of having
-	to provide the list:
-	  - https://strommeninc.com/1000-most-common-spanish-words-frequency-vocabulary/
-
+	  - This doesn't really jive with how LingQ works, unless there's a separate field for "Lesson Notes" or something?
 */
 
 type Config struct {
@@ -54,17 +48,27 @@ func init() {
 func main() {
 	config := GetVarsOrDieTrying()
 
-	words := LoadWords(config)
+	words, lingqClient := LoadWords(config)
 	story := LoadStory(config, words)
 
 	// Write Story to JSON
-	transcriptFile, err := os.Create("output.json")
+	jsonFile, err := os.Create("output.json")
 	if err != nil {
 		logrus.WithError(err).Fatal("failed to create transcript")
 	}
-	defer transcriptFile.Close()
-	if _, err = transcriptFile.WriteString(story.OriginalJSON); err != nil {
+	defer jsonFile.Close()
+	if _, err = jsonFile.WriteString(story.OriginalJSON); err != nil {
 		logrus.WithError(err).Fatal("Failed to write to file")
+	}
+
+	// Write Story to plain text
+	textFile, err := os.Create("output.txt")
+	if err != nil {
+		logrus.WithError(err).Fatal("failed to create transcript")
+	}
+	defer textFile.Close()
+	if _, err = textFile.WriteString(story.ToString()); err != nil {
+		logrus.WithError(err).Fatal("Failed to write to text file")
 	}
 
 	// Write thumbnail to PNG
@@ -93,6 +97,16 @@ func main() {
 	defer audioFile.Close()
 	if _, err = audioFile.Write(audio); err != nil {
 		logrus.WithError(err).Fatal("Failed to write audio to file")
+	}
+
+	if err := lingqClient.ImportLesson(
+		textFile.Name(),
+		audioFile.Name(),
+		imageFile.Name(),
+		story.Description,
+		story.Title,
+	); err != nil {
+		logrus.WithError(err).Fatal("Importing lesson to LingQ")
 	}
 }
 
@@ -124,7 +138,7 @@ func GetVarsOrDieTrying() Config {
 	}
 }
 
-func LoadWords(config Config) []lingq.Word {
+func LoadWords(config Config) ([]lingq.Word, *lingq.Client) {
 	logrus.Info("Checking local database...")
 	database := lingq.NewWordDatabase(config.LingQDatabasePath)
 	words, err := database.FetchIfFresh()
@@ -132,9 +146,10 @@ func LoadWords(config Config) []lingq.Word {
 		logrus.WithError(err).Fatal("Fetching LingQ words from database")
 	}
 
+	client := lingq.NewClient(config.LingQAPIKey)
 	if words == nil {
 		logrus.Info("Database not fresh, fetching new words...")
-		fetchedWords, err := lingq.NewVocabularyClient(config.LingQAPIKey).GetNonNewWords()
+		fetchedWords, err := client.GetNonNewWords()
 		if err != nil {
 			logrus.WithError(err).Fatal("Getting non-new words from LingQ")
 		}
@@ -147,7 +162,7 @@ func LoadWords(config Config) []lingq.Word {
 	}
 
 	logrus.WithField("count", len(words)).Info("Loaded words")
-	return words
+	return words, client
 }
 
 func LoadStory(config Config, words []lingq.Word) *gpt.Story {
