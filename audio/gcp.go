@@ -14,9 +14,11 @@ import (
 
 const speakingRate = 0.8
 
+// The "es-US-Neural2-A" voice exists but I have had bad results with weird
+// background artifacts and just generally unnatural voice from it. Which is a
+// shame because that means there are no female voices in my list.
 var voiceNames = []string{
 	"es-US-Studio-B",
-	"es-US-Neural2-A",
 	"es-US-Neural2-B",
 	"es-US-Neural2-C",
 }
