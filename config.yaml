@@ -12,10 +12,18 @@ openai:
 
     When introducing new vocabulary, you should favor words that are in the top
     1000 most common words in Spanish.
-  story_length: 2000
-  story_prompt: |-
+  story_length: 3500
+  story_prompt_preamble: |-
     Please write me a story that I can understand. I am a beginner, but I'm an
-    adult and would like to read something aimed at a mature audience. I would
-    like the tale to involve the supernatural.
+    adult and would like to read something aimed at a mature audience. You can
+    split the story into chapters if the length is appropriate for it.
+  story_prompt_styles:
+    - New England horror in the style of Stephen King
+    - Inciteful, engaging non-fiction writing in the style of Jon Krakauer
+    - Colorful, humorous fantasy in the style of Neil Gaiman
+    - Spare, beautiful westerns in the style of Cormac McCarthy
+    - Taught thriller in the style of Thomas Harris
+    - Beautiful, fantastic, optimistic science fiction in the style of Ray Bradbury
+    - A spy story in the style of John le Carré
 lingq:
   http_debug: false

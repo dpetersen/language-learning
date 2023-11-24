@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"strings"
 
@@ -34,6 +35,10 @@ I want the response in the form of a valid JSON object. Here is an example:
 		}
 	]
 }
+
+This example shows the format of the JSON object, but the actual story content
+should conform to whatever the prompt requests.
+
 Here is a vocabulary list for the student:
 `
 )
@@ -86,13 +91,12 @@ func (c *Client) CreateStory(words []lingq.Word, threshold int) (*Story, error) 
 				Role: "system",
 				Content: viper.GetString("openai.story_instructions") +
 					"\n\n" +
-					fmt.Sprintf("Please make the story in the neighborhood of %d words.\n\n", viper.GetInt("openai.story_length")) +
 					formatInstructions +
 					wordsByStatus(words, threshold),
 			},
 			{
 				Role:    "user",
-				Content: viper.GetString("openai.story_prompt"),
+				Content: generatePrompt(),
 			},
 		},
 		// TODO could count the length of the prompt and do this intelligently,
@@ -154,4 +158,21 @@ func wordsByStatus(words []lingq.Word, threshold int) string {
 	}
 
 	return result.String()
+}
+
+func generatePrompt() string {
+	styles := viper.GetStringSlice("openai.story_prompt_styles")
+	style := styles[rand.Intn(len(styles))]
+
+	return fmt.Sprintf(`
+		%s
+
+		I'd like the style of the story to be %s.
+
+		Please make the story in the neighborhood of %d words.
+		`,
+		viper.GetString("openai.story_prompt_preamble"),
+		style,
+		viper.GetInt("openai.story_length"),
+	)
 }

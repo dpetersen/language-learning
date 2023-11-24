@@ -20,6 +20,9 @@ Todo List:
 		- Use prompts to generate ideas from best seller lists, etc
 		- Maybe just prompt on the CLI for what you want the story to be about?
 		- Generate fake "podcasts" (using the voice tag in SSML for this?) about whatever topics you want
+		- Look at generate multi-chapter stories that are the right size for a
+		lesson. Can have ChatGPT summarize each chapter so you can use that as a
+		prompt for the next without blowing through your tokens.
 
 Additional Ideas:
 	- Use the SSML <voice> tag to help with dialogue: https://cloud.google.com/text-to-speech/docs/ssml#voice
