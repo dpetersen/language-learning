@@ -39,7 +39,7 @@ I want the response in the form of a valid JSON object. Here is an example:
 This example shows the format of the JSON object, but the actual story content
 should conform to whatever the prompt requests.
 
-Here is a vocabulary list for the student:
+Here is list of vocabulary that the student knows:
 `
 )
 
