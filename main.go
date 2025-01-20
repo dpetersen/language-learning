@@ -15,6 +15,20 @@ import (
 /*
 
 Todo List:
+  - Deal with this error and longer stories:
+     INFO[0000] Checking local database...
+		 INFO[0000] Database not fresh, fetching new words...
+		 INFO[0008] Loaded words                                  count=1435
+		 INFO[0008] Generating story...
+		 INFO[0075] Generated Story                               storyCharacters=3935
+		 INFO[0091] Generating audio...
+		 2024/03/01 17:40:50 rpc error: code = InvalidArgument desc = Either `input.text` or `input.ssml` is longer than the limit of 5000 bytes. This limit is different from quotas. To fix, reduce the byte length of the characters in this request, or consider using the Long Audio API: https://cloud.google.com/text-to-speech/docs/create-audio-text-long-audio-synthesis.
+
+	- Maybe use a higher temperature to write the story, then use a lower
+	temperature to rewrite it using the correct vocabulary. What I'm getting is
+	30-40% unknown words, which is too high. Could even re-rinse the story over
+	and over until the unknown words are low enough, although that might run up
+	the API costs.
 	- Make the prompt add variety to the stories
 	  - Summarize Wikipedia pages or news articles
 		- Use prompts to generate ideas from best seller lists, etc
